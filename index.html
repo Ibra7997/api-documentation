@@ -403,6 +403,20 @@
         // --- App State ---
         let db, auth, userId, currentLang = 'ar', currentCurrency = 'SAR';
         let maintenanceChart = null;
+
+        function getGeminiApiUrl() {
+            let apiKey = localStorage.getItem('gemini_api_key');
+            if (!apiKey) {
+                apiKey = window.prompt("Please enter your Gemini API Key:");
+                if (apiKey && apiKey.trim() !== '') {
+                    localStorage.setItem('gemini_api_key', apiKey.trim());
+                } else {
+                    throw new Error("Gemini API Key is required to use this feature.");
+                }
+            }
+            return `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+        }
+
         const state = {
             favorites: [],
             shoppingList: [],
@@ -422,9 +436,6 @@
             appId: "YOUR_APP_ID"
         };
         const appId = 'cs85-car-app';
-        // TO DO: Replace with your Gemini API Key
-        const GEMINI_API_KEY = "YOUR_GEMINI_API_KEY";
-        const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-preview-0514:generateContent?key=${GEMINI_API_KEY}`;
 
         const currencyRates = { SAR: 1, USD: 0.27, EUR: 0.25 };
 
@@ -603,7 +614,7 @@
         // --- AI Chat ---
         function setupAIChat() { renderChatHistory(); document.getElementById('chat-form').addEventListener('submit', handleChatSubmit); }
         function renderChatHistory() { const chatMessages = document.getElementById('chat-messages'); if (!chatMessages) return; chatMessages.innerHTML = ''; if (state.chatHistory.length === 0) { chatMessages.innerHTML = `<div class="ai-message p-3 rounded-lg max-w-xs sm:max-w-md">${translations[currentLang].ai_welcome}</div>`; } else { state.chatHistory.forEach(msg => { const messageEl = document.createElement('div'); messageEl.classList.add(msg.role === 'user' ? 'user-message' : 'ai-message', 'p-3', 'rounded-lg', 'max-w-xs', 'sm:max-w-md', msg.role === 'user' ? 'ml-auto' : 'mr-auto'); messageEl.textContent = msg.parts[0].text; chatMessages.appendChild(messageEl); }); } chatMessages.scrollTop = chatMessages.scrollHeight; }
-        async function handleChatSubmit(e) { e.preventDefault(); const input = document.getElementById('chat-input'); const userQuery = input.value.trim(); if (!userQuery) return; state.chatHistory.push({ role: 'user', parts: [{ text: userQuery }] }); renderChatHistory(); input.value = ''; const chatMessages = document.getElementById('chat-messages'); const loader = document.createElement('div'); loader.classList.add('ai-message', 'p-3', 'rounded-lg'); loader.innerHTML = `<div class="ai-loader flex items-center gap-2"><span></span><span></span><span></span></div>`; chatMessages.appendChild(loader); chatMessages.scrollTop = chatMessages.scrollHeight; try { const systemInstruction = { role: "system", parts: [{ text: "You are Elias, an expert AI assistant for Changan cars. You are helpful, friendly, and provide concise, accurate information. You must answer in the same language as the user's query (" + currentLang + ")." }] }; const response = await fetch(GEMINI_API_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contents: [systemInstruction, ...state.chatHistory] }) }); if (!response.ok) throw new Error(`API Error: ${response.status}`); const result = await response.json(); const aiResponse = result.candidates[0].content; state.chatHistory.push(aiResponse); saveData(); renderChatHistory(); } catch (error) { console.error("Gemini Chat failed:", error); state.chatHistory.push({ role: 'model', parts: [{ text: "Sorry, I'm having trouble connecting right now." }] }); renderChatHistory(); } }
+        async function handleChatSubmit(e) { e.preventDefault(); const input = document.getElementById('chat-input'); const userQuery = input.value.trim(); if (!userQuery) return; state.chatHistory.push({ role: 'user', parts: [{ text: userQuery }] }); renderChatHistory(); input.value = ''; const chatMessages = document.getElementById('chat-messages'); const loader = document.createElement('div'); loader.classList.add('ai-message', 'p-3', 'rounded-lg'); loader.innerHTML = `<div class="ai-loader flex items-center gap-2"><span></span><span></span><span></span></div>`; chatMessages.appendChild(loader); chatMessages.scrollTop = chatMessages.scrollHeight; try { const systemInstruction = { role: "system", parts: [{ text: "You are Elias, an expert AI assistant for Changan cars. You are helpful, friendly, and provide concise, accurate information. You must answer in the same language as the user's query (" + currentLang + ")." }] }; const response = await fetch(getGeminiApiUrl(), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ systemInstruction: systemInstruction, contents: [...state.chatHistory] }) }); if (!response.ok) throw new Error(`API Error: ${response.status}`); const result = await response.json(); const aiResponse = result.candidates[0].content; state.chatHistory.push(aiResponse); saveData(); renderChatHistory(); } catch (error) { console.error("Gemini Chat failed:", error); state.chatHistory.push({ role: 'model', parts: [{ text: "Sorry, I'm having trouble connecting right now." }] }); renderChatHistory(); } }
 
         // --- Gemini Daily Tip ---
         async function getEliasDailyTip() {
@@ -611,7 +622,7 @@
             const prompt = `Act as a helpful and friendly car assistant named Elias. Provide a single, concise daily tip for a Changan CS85 owner in ${currentLang === 'ar' ? 'Arabic' : 'English'}. The tip should be practical and easy to understand.`;
             tipContainer.innerHTML = `<div class="gemini-loader flex justify-center items-center gap-2"><span></span><span></span><span></span></div>`;
             try {
-                const response = await fetch(GEMINI_API_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }) });
+                const response = await fetch(getGeminiApiUrl(), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }) });
                 if (!response.ok) throw new Error(`API Error: ${response.status}`);
                 const result = await response.json();
                 const tipText = result.candidates[0].content.parts[0].text;
